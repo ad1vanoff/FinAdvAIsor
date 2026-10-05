@@ -1,13 +1,16 @@
-import { useState } from 'react';
-import { ASSET_CLASSES, ASSET_CLASS_SOURCES, DEMO_SIGNALS, RISK_PROFILES, RISK_QUESTIONS, RULE_REFERENCES, SOURCES, formatPlanText, money, pct, ruleReference } from '../engine';
+import { useMemo, useState } from 'react';
+import { ASSET_CLASSES, ASSET_CLASS_SOURCES, DEMO_SIGNALS, RISK_PROFILES, RISK_QUESTIONS, RULE_REFERENCES, SOURCES, compareProfiles, formatPlanText, money, pct, ruleReference } from '../engine';
 import type { AllocationPlan, AssetClassId, RiskAssessment, RiskTolerance } from '../engine';
 import { AllocationPie } from './AllocationPie';
+import { FanChart } from './charts/FanChart';
+import { RiskReturnMap } from './charts/RiskReturnMap';
 import { PlanTable } from './PlanTable';
+import { Research } from './Research';
 import { SourceLinks, Tabs } from './controls';
-import { parseMoney } from './state';
+import { parseMoney, toAllocationInput } from './state';
 import type { StepId, WizardState } from './state';
 
-type TabId = 'allocation' | 'why' | 'signals' | 'sources' | 'answers';
+type TabId = 'allocation' | 'outlook' | 'why' | 'signals' | 'research' | 'sources' | 'answers';
 
 const ruleSources = (id: string) => ruleReference(id)?.sourceIds ?? [];
 
@@ -36,6 +39,7 @@ export function Results({
   const invested = s.investableDollars > 0;
   const overridden = state.overrideRisk !== null && state.overrideRisk !== assessment.riskTolerance;
   const copy = (text: string) => navigator.clipboard?.writeText(text);
+  const comparisons = useMemo(() => compareProfiles(toAllocationInput(state, riskTolerance)), [state, riskTolerance]);
 
   return (
     <div className="results fade-up">
@@ -65,8 +69,10 @@ export function Results({
       <Tabs
         tabs={[
           { id: 'allocation', label: 'Allocation' },
+          { id: 'outlook', label: 'Outlook' },
           { id: 'why', label: 'Why this mix', badge: plan.warnings.length || undefined },
           { id: 'signals', label: 'Market signals', badge: plan.signals.applied.length || undefined },
+          { id: 'research', label: 'Research' },
           { id: 'sources', label: 'Sources' },
           { id: 'answers', label: 'Your answers' },
         ]}
@@ -137,6 +143,28 @@ export function Results({
           </div>
         )}
 
+        {tab === 'outlook' && (
+          <div className="stack outlook-grid">
+            <div className="panel">
+              <div className="section-title">
+                <h2>Range of outcomes over {state.basics.horizonYears === 40 ? '40+' : state.basics.horizonYears} years</h2>
+                <span className="small muted">for the {money(invested ? s.investableDollars : s.totalAmount)} {invested ? 'invested' : 'total'}</span>
+              </div>
+              <FanChart start={invested ? s.investableDollars : s.totalAmount} expectedReturn={s.expectedReturn} volatility={s.expectedVolatility} years={Math.max(1, state.basics.horizonYears)} />
+            </div>
+            <div className="panel">
+              <div className="section-title">
+                <h2>Where your plan sits</h2>
+                <span className="small muted">risk versus return across the four profiles</span>
+              </div>
+              <RiskReturnMap comparisons={comparisons} current={{ expectedReturn: s.expectedReturn, volatility: s.expectedVolatility }} currentProfile={riskTolerance} />
+            </div>
+            <p className="disclaimer">
+              Both charts use the round, long-run return and volatility assumptions listed on the Sources tab. They describe the shape of the risk being taken, not what will happen.
+            </p>
+          </div>
+        )}
+
         {tab === 'why' && (
           <div className="stack">
             <div className="panel notes">
@@ -171,6 +199,20 @@ export function Results({
                 </button>
                 .
               </p>
+            </div>
+
+            <div className="panel">
+              <h2>How the stock share was set</h2>
+              <ol className="derivation">
+                {plan.derivation.map((d) => (
+                  <li key={d.stage}>
+                    <span className="num d-val">{pct(d.equity)}</span>
+                    <span>
+                      <strong className="d-stage">{d.stage}</strong> {d.note}
+                    </span>
+                  </li>
+                ))}
+              </ol>
             </div>
 
             {assessment.reasons.length > 0 && (
@@ -274,6 +316,8 @@ export function Results({
             )}
           </div>
         )}
+
+        {tab === 'research' && <Research />}
 
         {tab === 'sources' && <Sources plan={plan} />}
 

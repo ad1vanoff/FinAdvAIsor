@@ -135,11 +135,13 @@ export function Progress({
   current,
   reached,
   onJump,
+  icons,
 }: {
   steps: { id: string; label: string }[];
   current: string;
   reached: number;
   onJump: (id: string) => void;
+  icons?: Record<string, ReactNode>;
 }) {
   const currentIndex = steps.findIndex((s) => s.id === current);
   return (
@@ -150,7 +152,7 @@ export function Progress({
         return (
           <li key={s.id} className={state} aria-current={i === currentIndex ? 'step' : undefined}>
             <button type="button" disabled={!clickable} onClick={() => onJump(s.id)}>
-              <span className="n">{i + 1}</span> {s.label}
+              {icons?.[s.id] ? <span className="ico">{icons[s.id]}</span> : <span className="n">{i + 1}</span>} {s.label}
             </button>
           </li>
         );

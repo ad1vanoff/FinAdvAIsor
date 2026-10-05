@@ -14,6 +14,8 @@ dollar-by-dollar allocation with the reasoning behind it.
 ```bash
 npm install
 npm run dev        # web UI at http://localhost:5173
+npm run server     # assistant API on :8791 (needs ANTHROPIC_API_KEY, see below)
+npm run dev:full   # both of the above together
 npm test           # engine test suite
 npm run plan -- --amount 100000 --risk conservative --horizon 10 --age 40
 ```
@@ -50,7 +52,7 @@ The web UI gathers input the way an intake meeting would, one step at a time:
 5. **Building your plan**: a narrated sequence shows each engine step with the real
    numbers as it happens (reserves set aside, profile read, guardrails applied,
    signals checked, sleeves filled, dollars reconciled). Skippable.
-6. **Your plan**, in five tabs.
+6. **Your plan**, in six tabs.
    - *Allocation*: headline figures, an interactive donut (hover to read a slice,
      click to pin it and highlight it in the table, switch between asset-class and
      bucket views), and the line-by-line table with source links and copy buttons.
@@ -58,6 +60,14 @@ The web UI gathers input the way an intake meeting would, one step at a time:
      rebalancing policy and the rough outlook, each with its sources.
    - *Market signals*: the demo of the news layer. Toggling a signal updates the
      plan and shows exactly what it changed.
+   - *Research*: validated market data (Treasury yields, TIPS real yield, fed funds,
+     inflation, unemployment, S&P 500, VIX, high-yield spread) served by
+     `/api/research` ([`src/research/`](src/research/)). Each figure is parsed,
+     range-tested, checked for age and implausible jumps, and compared with a second
+     publisher for the same date (Treasury, NY Fed, BLS, Cboe) wherever a free feed
+     exists. Cards are labelled Verified, Single source, Stale or Withheld; a figure
+     that fails is withheld, never estimated. Informational only: it does not change
+     the plan. Needs `npm run server` running; results are cached for 30 minutes.
    - *Sources*: every rule the allocator applies, how it is used here, and links to
      the reading behind it ([`src/engine/sources.ts`](src/engine/sources.ts)). Only
      official or long-standing publishers are linked (SEC, FINRA, CFPB, FDIC,
@@ -68,6 +78,49 @@ The web UI gathers input the way an intake meeting would, one step at a time:
 
 Completed steps in the progress bar are clickable, so any answer can be revisited
 without starting over. Progress is saved in the browser.
+
+## Graphics
+
+- **Header art** and per-step icons in the progress bar.
+- **Basics**: a glide-path chart of the stock ceiling by horizon that follows the slider.
+- **Safety net**: a jar that fills as the emergency reserve is sized.
+- **Risk profile**: an animated score count-up along the band meter, with confetti.
+- **Outlook tab**: a fan chart of the range of outcomes over the horizon (median with
+  the 10th to 90th percentile band from a lognormal model of the plan's own return
+  and volatility assumptions) and a risk-versus-return map of the four profiles with
+  this plan highlighted. Both are labelled as assumption-driven, not forecasts.
+- **Allocation tab**: the interactive donut with hover, pin, and asset-class / bucket views.
+
+All charts are plain SVG, theme-aware, and respect reduced-motion settings.
+
+## The assistant
+
+A floating "Ask about your plan" panel answers questions grounded in the user's own
+plan, the allocator's rules, and the verified sources. It runs on **Claude Sonnet 5**
+(`claude-sonnet-5`, the cheap and fast tier) at low effort, with the static part of
+the system prompt (rules, sources, asset catalogue, questionnaire) marked for prompt
+caching so repeat questions cost a fraction of the first.
+
+Setup:
+
+```bash
+cp .env.example .env      # then set ANTHROPIC_API_KEY
+npm run dev:full          # Vite on :5173 proxies /api to the assistant server on :8791
+```
+
+- The API key lives only on the server ([`server/index.ts`](server/index.ts)); the
+  browser never sees it. The server also rate-limits per IP and caps request size.
+- `ASSISTANT_MOCK=1` streams canned replies without a key, for UI work.
+- `ASSISTANT_WEB_SEARCH=1` lets the model use Anthropic's web search tool for extra
+  references (up to three searches per answer; costs more).
+- `ASSISTANT_MODEL` overrides the model id.
+- Production: `npm run build && npm start` serves `dist/` and the API from one process.
+
+The prompt ([`src/assistant/prompt.ts`](src/assistant/prompt.ts)) tells the model it
+is not a licensed adviser, to avoid trade or timing recommendations, to treat the
+outlook figures as assumption-driven, and to cite the tool's sources. The browser
+sends the current plan and answers with every request so the model can quote exact
+numbers.
 
 ## How the engine thinks
 
@@ -169,7 +222,11 @@ src/engine/      pure allocation engine (no DOM, no I/O)
   format.ts      plain-text rendering
   __tests__/     vitest suite
 src/cli.ts       command-line front end
+src/assistant/   system prompt builder shared by the server and tests
+server/index.ts  assistant API (streams Claude replies) + static server for dist/
 src/ui/          Vite + React front end
+  charts/        glide path, fan chart, risk-return map
+  art/           header art, step icons, reserve jar, confetti
 ```
 
 ## Scripts
@@ -180,3 +237,6 @@ src/ui/          Vite + React front end
 | `npm run build` | Typecheck and production build to `dist/` |
 | `npm test` | Run the engine tests |
 | `npm run plan -- …` | CLI plan |
+| `npm run server` | Assistant API on :8791 |
+| `npm run dev:full` | Vite + assistant API together |
+| `npm start` | Serve `dist/` and the API from one process |

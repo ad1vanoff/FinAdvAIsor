@@ -15,3 +15,14 @@ export const pts = (x: number): string => {
   const p = Math.round(x * 1000) / 10;
   return `${p} point${p === 1 ? '' : 's'}`;
 };
+
+/** 1234567 -> "$1.23M", 45600 -> "$45.6K", 950 -> "$950" */
+export const moneyCompact = (x: number): string => {
+  const abs = Math.abs(x);
+  const sign = x < 0 ? '-' : '';
+  if (abs >= 1e9) return `${sign}$${(abs / 1e9).toFixed(2)}B`;
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(2)}M`;
+  if (abs >= 1e4) return `${sign}$${(abs / 1e3).toFixed(0)}K`;
+  if (abs >= 1e3) return `${sign}$${(abs / 1e3).toFixed(1)}K`;
+  return `${sign}$${abs.toFixed(0)}`;
+};

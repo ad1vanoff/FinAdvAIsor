@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useState } from 'react';
 import { RISK_QUESTIONS, allocate, assessRisk, isComplete } from '../engine';
 import type { AllocationPlan, RiskTolerance } from '../engine';
+import { HeaderArt } from './art/HeaderArt';
+import { STEP_ICONS } from './art/StepIcons';
+import { Assistant } from './Assistant';
+import { buildAssistantContext } from './assistantContext';
 import { BuildingStep } from './Building';
 import { Progress } from './controls';
 import { Results } from './Results';
@@ -68,14 +72,19 @@ export function App() {
           <h1>FinAdvAIsor</h1>
           <p className="tagline">A conservative planner's allocation, built from a few questions.</p>
         </div>
-        <span className="small muted">Educational tool, not personalised advice</span>
+        <div className="topbar-right">
+          <span className="small muted">Educational tool, not personalised advice</span>
+          <HeaderArt />
+        </div>
       </header>
 
-      <Progress steps={STEPS} current={progressStep} reached={state.reached} onJump={(id) => go(id as StepId)} />
+      <Progress steps={STEPS} current={progressStep} reached={state.reached} onJump={(id) => go(id as StepId)} icons={STEP_ICONS} />
 
       {state.step === 'basics' && <BasicsStep value={state.basics} onChange={(basics) => patch({ basics })} onNext={() => go('safety')} />}
 
-      {state.step === 'safety' && <SafetyStep value={state.safety} onChange={(safety) => patch({ safety })} onBack={() => go('basics')} onNext={() => go('risk')} />}
+      {state.step === 'safety' && (
+        <SafetyStep value={state.safety} amount={state.basics.amount} onChange={(safety) => patch({ safety })} onBack={() => go('basics')} onNext={() => go('risk')} />
+      )}
 
       {state.step === 'risk' && riskIndex === REVEAL && assessment && (
         <ProfileReveal key="reveal" assessment={assessment} onBack={() => patch({ riskIndex: LAST_QUESTION })} onContinue={() => go('preferences')} />
@@ -132,6 +141,8 @@ export function App() {
           onSignals={(signalIds) => patch({ signalIds })}
         />
       )}
+
+      <Assistant context={buildAssistantContext(state, result?.plan ?? null, assessment, riskTolerance)} />
     </div>
   );
 }

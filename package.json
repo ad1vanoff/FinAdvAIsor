@@ -11,9 +11,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
-    "plan": "tsx src/cli.ts"
+    "plan": "tsx src/cli.ts",
+    "server": "tsx server/index.ts",
+    "dev:full": "node scripts/dev.mjs",
+    "start": "tsx server/index.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.129.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

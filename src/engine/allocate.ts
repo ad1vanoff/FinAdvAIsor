@@ -30,6 +30,7 @@ import type {
   AssetClassId,
   Bucket,
   BucketSummary,
+  DerivationStep,
   IgnoredSignal,
   MarketSignal,
   ResolvedInput,
@@ -149,17 +150,25 @@ export function allocate(raw: AllocationInput): AllocationPlan {
   const binding = caps.reduce((best, c) => (c.value < best.value ? c : best));
   const cap = binding.value;
 
+  const derivation: DerivationStep[] = [];
+  const trace = (stage: string, equity: number, note: string) => derivation.push({ stage, equity, note });
+
   const bonus = horizonEquityBonus(h);
   let equity = profile.baseEquity + bonus;
+  trace('profile', equity, `${profile.label} profile starts at ${pct(profile.baseEquity)}${bonus > 0 ? ` plus ${pts(bonus)} for a ${h}-year horizon` : ''}.`);
   if (bonus > 0) notes.push(`Added ${pts(bonus)} of equity for a horizon of ${h} years.`);
   if (equity > cap) {
     notes.push(`Equity limited to ${pct(cap)} by ${binding.reason}; the ${profile.label.toLowerCase()} profile would otherwise start at ${pct(equity)}.`);
     equity = cap;
+    trace('caps', equity, `Capped at ${pct(cap)} by ${binding.reason}.`);
+  } else {
+    trace('caps', equity, `The ${pct(cap)} ceiling (${binding.reason}) was not binding.`);
   }
   if (input.needsIncome) {
     const shift = Math.min(INCOME_EQUITY_SHIFT, equity);
     equity -= shift;
     notes.push(`Income goal: moved ${pts(shift)} from equity to bonds and tilted toward dividend stocks and investment-grade credit.`);
+    trace('income', equity, `Income goal moved ${pts(shift)} from stocks to bonds.`);
   }
   let cash = profile.cashBuffer;
 
@@ -200,6 +209,7 @@ export function allocate(raw: AllocationInput): AllocationPlan {
   }
 
   let fixedIncome = 1 - equity - cash;
+  trace('signals', equity, netted.applied.length > 0 ? `After ${netted.applied.length} signal(s): ${Object.values(effects).join('; ')}.` : 'No market signals active.');
 
   // --- 4. Alternatives ----------------------------------------------------
   let reit = 0;
@@ -217,6 +227,9 @@ export function allocate(raw: AllocationInput): AllocationPlan {
       fixedIncome -= gold * (fixedIncome / pool);
       notes.push(`Gold: a ${pct(gold)} hedge funded pro rata from stocks and bonds.`);
     }
+  }
+  if (reit > 0 || gold > 0) {
+    trace('alternatives', equity, `${reit > 0 ? `REITs took ${pct(reit, 1)} of the portfolio out of the stock sleeve` : ''}${reit > 0 && gold > 0 ? '; ' : ''}${gold > 0 ? `gold took ${pct(gold)} pro rata from stocks and bonds` : ''}.`);
   }
 
   // --- 5. Sub-allocations -------------------------------------------------
@@ -371,6 +384,7 @@ export function allocate(raw: AllocationInput): AllocationPlan {
   });
   const investedWeight = (bucket: Bucket) =>
     lines.filter((l) => l.bucket === bucket).reduce((a, l) => a + (l.weightOfInvested ?? 0), 0);
+  trace('final', investedWeight('equity'), 'Positions under 2% folded away and weights rounded to whole percents.');
 
   if (investable <= 0) {
     warnings.push('Nothing is left to invest after reserves. Revisit once the emergency fund and near-term needs are covered.');
@@ -392,6 +406,7 @@ export function allocate(raw: AllocationInput): AllocationPlan {
   return {
     generatedAt: now.toISOString(),
     input,
+    derivation,
     lines,
     buckets,
     summary: {

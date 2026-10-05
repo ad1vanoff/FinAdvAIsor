@@ -268,3 +268,17 @@ describe('risk summary', () => {
     expect(g.summary.typicalBadYear).toBeLessThan(vc.summary.typicalBadYear);
   });
 });
+
+describe('derivation trace', () => {
+  it('walks from the profile start to the final rounded stock share', () => {
+    const p = plan({ riskTolerance: 'moderate', horizonYears: 10, includeGold: true, signals: [DEMO_SIGNALS['recession-risk']] });
+    const stages = p.derivation.map((d) => d.stage);
+    expect(stages[0]).toBe('profile');
+    expect(stages).toContain('signals');
+    expect(stages).toContain('alternatives');
+    expect(stages[stages.length - 1]).toBe('final');
+    expect(p.derivation[0].equity).toBeCloseTo(RISK_PROFILES.moderate.baseEquity, 9);
+    expect(p.derivation[p.derivation.length - 1].equity).toBeCloseTo(p.summary.equityWeight, 9);
+    for (let i = 1; i < p.derivation.length - 1; i++) expect(p.derivation[i].equity).toBeLessThanOrEqual(p.derivation[i - 1].equity + 1e-9);
+  });
+});

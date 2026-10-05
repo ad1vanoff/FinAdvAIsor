@@ -208,9 +208,19 @@ export interface IgnoredSignal {
   reason: string;
 }
 
+/** One stage in how the stock share was arrived at, so the reasoning can be shown and quoted. */
+export interface DerivationStep {
+  stage: string;
+  /** Stock share of the invested portfolio after this stage. */
+  equity: number;
+  note: string;
+}
+
 export interface AllocationPlan {
   generatedAt: string;
   input: ResolvedInput;
+  /** Ordered trace of the stock share from profile to final rounded figure. */
+  derivation: DerivationStep[];
   lines: AllocationLine[];
   buckets: BucketSummary[];
   summary: PlanSummary;

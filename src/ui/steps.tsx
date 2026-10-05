@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
-import { RISK_PROFILES, RISK_QUESTIONS, SCORE_BANDS, horizonEquityCap, pct } from '../engine';
+import { EMERGENCY_FUND_MONTHS, RISK_PROFILES, RISK_QUESTIONS, SCORE_BANDS, horizonEquityCap, money, pct } from '../engine';
 import type { AccountType, Answers, RiskAssessment } from '../engine';
+import { Confetti } from './art/Confetti';
+import { ReserveJar } from './art/ReserveJar';
+import { GlidePath } from './charts/GlidePath';
 import { Choices, Field, StepShell, Toggle } from './controls';
-import { validateBasics, validateSafety } from './state';
+import { parseMoney, validateBasics, validateSafety } from './state';
 import type { Basics, Prefs, Safety } from './state';
 
 const HORIZON_PRESETS = [1, 3, 5, 10, 20, 30];
@@ -54,6 +57,7 @@ export function BasicsStep({ value, onChange, onNext }: { value: Basics; onChang
             </button>
           ))}
         </div>
+        <GlidePath horizon={value.horizonYears} />
       </Field>
 
       <Field label="Your age (optional)" hint="Used only to cap stock exposure at 100 minus your age." error={touched ? errors.age : undefined}>
@@ -63,10 +67,35 @@ export function BasicsStep({ value, onChange, onNext }: { value: Basics; onChang
   );
 }
 
-export function SafetyStep({ value, onChange, onNext, onBack }: { value: Safety; onChange: (s: Safety) => void; onNext: () => void; onBack: () => void }) {
+export function SafetyStep({
+  value,
+  amount,
+  onChange,
+  onNext,
+  onBack,
+}: {
+  value: Safety;
+  amount: string;
+  onChange: (s: Safety) => void;
+  onNext: () => void;
+  onBack: () => void;
+}) {
   const [touched, setTouched] = useState(false);
   const errors = validateSafety(value);
   const set = <K extends keyof Safety>(k: K, v: Safety[K]) => onChange({ ...value, [k]: v });
+
+  const total = parseMoney(amount);
+  const expenses = parseMoney(value.monthlyExpenses);
+  const target = expenses && !Number.isNaN(expenses) ? expenses * EMERGENCY_FUND_MONTHS : 0;
+  const reserved = total && !Number.isNaN(total) && target > 0 ? Math.min(total, target) : 0;
+  const jar =
+    value.hasEmergencyFund === true
+      ? { fill: 1, label: 'Emergency fund covered', sublabel: 'Held outside this money' }
+      : value.hasEmergencyFund === false
+        ? target > 0
+          ? { fill: reserved / target, label: `${money(reserved)} reserved`, sublabel: `${EMERGENCY_FUND_MONTHS} months × ${money(expenses!)}` }
+          : { fill: 0, label: 'Emergency fund', sublabel: 'Enter monthly expenses to size it' }
+        : { fill: 0, label: 'Your safety net', sublabel: 'Answer below to see it fill' };
 
   return (
     <StepShell
@@ -79,6 +108,8 @@ export function SafetyStep({ value, onChange, onNext, onBack }: { value: Safety;
         if (Object.keys(errors).length === 0) onNext();
       }}
     >
+      <div className="safety-grid">
+      <div className="fields">
       <Field label="Do you already have an emergency fund of about six months of expenses?" error={touched ? errors.hasEmergencyFund : undefined}>
         <Choices
           row
@@ -118,6 +149,9 @@ export function SafetyStep({ value, onChange, onNext, onBack }: { value: Safety;
           </div>
         </Field>
       )}
+      </div>
+      <ReserveJar fill={jar.fill} label={jar.label} sublabel={jar.sublabel} />
+      </div>
     </StepShell>
   );
 }
@@ -239,6 +273,7 @@ export function ProfileReveal({ assessment, onBack, onContinue }: { assessment: 
 
   return (
     <div className="step reveal">
+      <Confetti fire={stage >= 1} />
       <div className="step-head">
         <span className="eyebrow">Step 3 of 4 · Your result</span>
         <h2>{stage === 0 ? 'Scoring your answers…' : `You are a ${profile.label.toLowerCase()} investor`}</h2>

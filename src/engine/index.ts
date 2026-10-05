@@ -11,3 +11,8 @@ export { MAX_RISK_SCORE, RISK_QUESTIONS, SCORE_BANDS, assessRisk, isComplete } f
 export type { Answers, Question, QuestionId, QuestionOption, RiskAssessment } from './questionnaire';
 export { ASSET_CLASS_SOURCES, RULE_REFERENCES, SOURCES, ruleReference, sourcesFor } from './sources';
 export type { RuleReference, Source } from './sources';
+export { projectGrowth } from './projection';
+export type { ProjectionPoint } from './projection';
+export { compareProfiles } from './compare';
+export type { ProfileComparison } from './compare';
+export { moneyCompact } from './util';
