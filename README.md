@@ -67,7 +67,15 @@ The web UI gathers input the way an intake meeting would, one step at a time:
      publisher for the same date (Treasury, NY Fed, BLS, Cboe) wherever a free feed
      exists. Cards are labelled Verified, Single source, Stale or Withheld; a figure
      that fails is withheld, never estimated. Informational only: it does not change
-     the plan. Needs `npm run server` running; results are cached for 30 minutes.
+     the plan unless you opt in on the Market signals tab (see below). Needs
+     `npm run server` running; results are cached for 30 minutes.
+   - *Research-driven signals* (Market signals tab, off by default): four simple rules
+     in [`src/research/signals.ts`](src/research/signals.ts) turn **Verified** figures
+     into signals: inverted yield curve and the Sahm unemployment rule trim stocks,
+     VIX at or above 25 adds cash, CPI at or above 3% leans bonds toward TIPS. They only
+     ever reduce risk, expire when their data goes stale, and pass through the same
+     bounds and stock ceiling as every other signal. Each rule shows its current reading
+     whether or not it fired.
    - *Sources*: every rule the allocator applies, how it is used here, and links to
      the reading behind it ([`src/engine/sources.ts`](src/engine/sources.ts)). Only
      official or long-standing publishers are linked (SEC, FINRA, CFPB, FDIC,

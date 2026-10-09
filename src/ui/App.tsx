@@ -9,6 +9,8 @@ import { buildAssistantContext } from './assistantContext';
 import { BuildingStep } from './Building';
 import { Progress } from './controls';
 import { Results } from './Results';
+import { deriveSignals } from '../research/signals';
+import { useResearch } from './useResearch';
 import { INITIAL, STEPS, loadState, saveState, stepIndex, toAllocationInput } from './state';
 import type { StepId, WizardState } from './state';
 import { BasicsStep, PreferencesStep, ProfileReveal, RiskStep, SafetyStep } from './steps';
@@ -44,14 +46,17 @@ export function App() {
   const riskTolerance: RiskTolerance = state.overrideRisk ?? assessment?.riskTolerance ?? 'conservative';
   const overridden = state.overrideRisk !== null && state.overrideRisk !== assessment?.riskTolerance;
 
+  const research = useResearch(state.researchSignals && (state.step === 'plan' || state.step === 'building'));
+  const researchRules = useMemo(() => (research.snap ? deriveSignals(research.snap.indicators) : { signals: [], evaluations: [] }), [research.snap]);
+
   const result = useMemo<{ plan?: AllocationPlan; error?: string } | null>(() => {
     if ((state.step !== 'plan' && state.step !== 'building') || !assessment) return null;
     try {
-      return { plan: allocate(toAllocationInput(state, riskTolerance)) };
+      return { plan: allocate(toAllocationInput(state, riskTolerance, researchRules.signals)) };
     } catch (e) {
       return { error: (e as Error).message };
     }
-  }, [state, assessment, riskTolerance]);
+  }, [state, assessment, riskTolerance, researchRules]);
 
   // Guard against stale storage: the plan needs a finished questionnaire.
   useEffect(() => {
@@ -139,6 +144,7 @@ export function App() {
           onEdit={(step) => (step === 'risk' ? patch({ step: 'risk', riskIndex: 0 }) : go(step))}
           onRestart={() => setState(INITIAL)}
           onSignals={(signalIds) => patch({ signalIds })}
+          research={{ ...research, ...researchRules, enabled: state.researchSignals, onToggle: (researchSignals) => patch({ researchSignals }) }}
         />
       )}
 

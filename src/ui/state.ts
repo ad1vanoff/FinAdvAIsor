@@ -50,6 +50,8 @@ export interface WizardState {
   /** A profile chosen on the results page instead of the questionnaire's. */
   overrideRisk: RiskTolerance | null;
   signalIds: string[];
+  /** Opt in to signals derived from validated research data. Off by default. */
+  researchSignals: boolean;
 }
 
 export const INITIAL: WizardState = {
@@ -70,6 +72,7 @@ export const INITIAL: WizardState = {
   },
   overrideRisk: null,
   signalIds: [],
+  researchSignals: false,
 };
 
 /** Blank -> undefined; garbage -> NaN; otherwise the number (commas and $ allowed). */
@@ -106,8 +109,8 @@ export function validateSafety(s: Safety): Errors<Safety> {
   return e;
 }
 
-export function toAllocationInput(state: WizardState, riskTolerance: RiskTolerance): AllocationInput {
-  const signals: MarketSignal[] = state.signalIds.map((id) => DEMO_SIGNALS[id]).filter(Boolean);
+export function toAllocationInput(state: WizardState, riskTolerance: RiskTolerance, researchSignals: MarketSignal[] = []): AllocationInput {
+  const signals: MarketSignal[] = [...state.signalIds.map((id) => DEMO_SIGNALS[id]).filter(Boolean), ...(state.researchSignals ? researchSignals : [])];
   return {
     amount: parseMoney(state.basics.amount) ?? Number.NaN,
     riskTolerance,
@@ -136,6 +139,7 @@ export function loadState(): WizardState {
       prefs: { ...INITIAL.prefs, ...saved.prefs },
       answers: saved.answers ?? {},
       signalIds: saved.signalIds ?? [],
+      researchSignals: saved.researchSignals ?? false,
     };
   } catch {
     return INITIAL;

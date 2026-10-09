@@ -1,14 +1,26 @@
 import { useMemo, useState } from 'react';
 import { ASSET_CLASSES, ASSET_CLASS_SOURCES, DEMO_SIGNALS, RISK_PROFILES, RISK_QUESTIONS, RULE_REFERENCES, SOURCES, compareProfiles, formatPlanText, money, pct, ruleReference } from '../engine';
-import type { AllocationPlan, AssetClassId, RiskAssessment, RiskTolerance } from '../engine';
+import type { AllocationPlan, AssetClassId, MarketSignal, RiskAssessment, RiskTolerance } from '../engine';
 import { AllocationPie } from './AllocationPie';
 import { FanChart } from './charts/FanChart';
 import { RiskReturnMap } from './charts/RiskReturnMap';
 import { PlanTable } from './PlanTable';
 import { Research } from './Research';
+import type { RuleEvaluation } from '../research/signals';
+import type { ResearchSnapshot } from '../research/types';
 import { SourceLinks, Tabs } from './controls';
 import { parseMoney, toAllocationInput } from './state';
 import type { StepId, WizardState } from './state';
+
+export interface ResearchFeed {
+  enabled: boolean;
+  onToggle: (on: boolean) => void;
+  snap: ResearchSnapshot | null;
+  loading: boolean;
+  error: string | null;
+  evaluations: RuleEvaluation[];
+  signals: MarketSignal[];
+}
 
 type TabId = 'allocation' | 'outlook' | 'why' | 'signals' | 'research' | 'sources' | 'answers';
 
@@ -23,6 +35,7 @@ export function Results({
   onEdit,
   onRestart,
   onSignals,
+  research,
 }: {
   state: WizardState;
   assessment: RiskAssessment;
@@ -32,6 +45,7 @@ export function Results({
   onEdit: (step: StepId) => void;
   onRestart: () => void;
   onSignals: (ids: string[]) => void;
+  research: ResearchFeed;
 }) {
   const [tab, setTab] = useState<TabId>('allocation');
   const [selected, setSelected] = useState<string | null>(null);
@@ -39,7 +53,7 @@ export function Results({
   const invested = s.investableDollars > 0;
   const overridden = state.overrideRisk !== null && state.overrideRisk !== assessment.riskTolerance;
   const copy = (text: string) => navigator.clipboard?.writeText(text);
-  const comparisons = useMemo(() => compareProfiles(toAllocationInput(state, riskTolerance)), [state, riskTolerance]);
+  const comparisons = useMemo(() => compareProfiles(toAllocationInput(state, riskTolerance, research.signals)), [state, riskTolerance, research.signals]);
 
   return (
     <div className="results fade-up">
@@ -268,9 +282,9 @@ export function Results({
         {tab === 'signals' && (
           <div className="stack">
             <div className="panel">
-              <h2>Market signals</h2>
+              <h2>Demo signals</h2>
               <p className="secondary" style={{ marginTop: 6 }}>
-                This is a preview of the news-driven layer. Each signal nudges one dimension by a bounded amount, risk-on signals count half as much as risk-off ones, and nothing can push
+                These are illustrative stand-ins for a future news layer. Each signal nudges one dimension by a bounded amount, risk-on signals count half as much as risk-off ones, and nothing can push
                 stocks above the ceiling. Toggle a few and watch the allocation tab change.
               </p>
               <div className="signals">
@@ -290,6 +304,38 @@ export function Results({
                   );
                 })}
               </div>
+            </div>
+            <div className="panel">
+              <h2>Signals from validated research</h2>
+              <p className="secondary" style={{ marginTop: 6 }}>
+                Simple rules read the Verified figures on the Research tab and, when one trips, send the allocator a signal. They only ever argue for <strong>less</strong> risk (trim stocks, hold
+                more cash, lean to TIPS), they expire when their data goes stale, and the same caps apply as for every other signal. Figures that are not Verified are never used.
+              </p>
+              <label className="signal" style={{ marginTop: 10 }}>
+                <input type="checkbox" checked={research.enabled} onChange={(e) => research.onToggle(e.target.checked)} />
+                <span>Apply research-driven signals to my plan</span>
+              </label>
+              {research.enabled && research.loading && !research.snap && <p className="small muted" style={{ marginTop: 8 }}>Fetching and validating the latest figures…</p>}
+              {research.enabled && research.error && (
+                <p className="small" style={{ marginTop: 8, color: 'var(--danger)' }} role="alert">
+                  {research.error} No research signals are applied until it loads.
+                </p>
+              )}
+              {research.snap && (
+                <div className="sig-list" style={{ marginTop: 10 }}>
+                  {research.evaluations.map((e) => (
+                    <div className={`row${e.triggered ? '' : ' muted'}`} key={e.id}>
+                      <span className="pill">{!e.usable ? 'not run' : e.triggered ? (research.enabled ? 'applied' : 'would apply') : 'quiet'}</span>
+                      <span>
+                        <strong>{e.label}</strong>: {e.rule}
+                        <br />
+                        <span className="small">{e.detail}</span>
+                      </span>
+                    </div>
+                  ))}
+                  <p className="small muted">Data fetched {new Date(research.snap.fetchedAt).toLocaleString()}. Details and sources are on the Research tab.</p>
+                </div>
+              )}
             </div>
             {(plan.signals.applied.length > 0 || plan.signals.ignored.length > 0) && (
               <div className="panel">

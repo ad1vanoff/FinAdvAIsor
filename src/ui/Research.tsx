@@ -1,8 +1,5 @@
-import { useCallback, useEffect, useState } from 'react';
-import type { Indicator, ResearchGroup, ResearchSnapshot, ResearchStatus } from '../research/types';
-
-/** Survives tab switches so the sources are not re-queried every time the tab is opened. */
-let cached: ResearchSnapshot | null = null;
+import type { Indicator, ResearchGroup, ResearchStatus } from '../research/types';
+import { useResearch } from './useResearch';
 
 const GROUPS: { id: ResearchGroup; title: string; blurb: string }[] = [
   { id: 'rates', title: 'Interest rates', blurb: 'What safe money and bonds pay today.' },
@@ -106,30 +103,7 @@ function Card({ i }: { i: Indicator }) {
 }
 
 export function Research() {
-  const [snap, setSnap] = useState<ResearchSnapshot | null>(cached);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(!cached);
-
-  const load = useCallback(async (refresh: boolean) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/research${refresh ? '?refresh=1' : ''}`);
-      if (!res.ok) throw new Error(res.status === 429 ? 'Too many requests. Try again in a minute.' : `The research service returned ${res.status}.`);
-      const data = (await res.json()) as ResearchSnapshot;
-      cached = data;
-      setSnap(data);
-    } catch (e) {
-      const msg = e instanceof TypeError ? 'Could not reach the research service. Start it with `npm run server` (or `npm run dev:full`).' : (e as Error).message;
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!cached) void load(false);
-  }, [load]);
+  const { snap, error, loading, reload } = useResearch();
 
   const counts = snap ? (['verified', 'single-source', 'stale', 'rejected'] as ResearchStatus[]).map((s) => [s, snap.indicators.filter((i) => i.status === s).length] as const) : [];
 
@@ -143,7 +117,7 @@ export function Research() {
               Figures come straight from public primary sources (U.S. Treasury, Federal Reserve, Bureau of Labor Statistics, Cboe) and are checked before they are shown: parsed, range-tested, checked for age and sudden jumps, and compared with a second source for the same date wherever one exists. Anything that fails is withheld, never guessed. This page is context only and does not change your plan.
             </p>
           </div>
-          <button type="button" className="btn" onClick={() => void load(true)} disabled={loading}>
+          <button type="button" className="btn" onClick={() => void reload(true)} disabled={loading}>
             {loading ? 'Loading…' : 'Refresh'}
           </button>
         </div>
